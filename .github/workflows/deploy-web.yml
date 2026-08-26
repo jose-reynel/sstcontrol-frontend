@@ -1,0 +1,55 @@
+name: Publicar app Web en GitHub Pages
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build-y-publicar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Instalar .NET 10 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Publicar SstControl.Frontend.Web
+        run: dotnet publish SstControl.Frontend.Web/SstControl.Frontend.Web.csproj -c Release -o release
+
+      - name: Preparar para GitHub Pages (subcarpeta del repo)
+        run: |
+          cd release/wwwroot
+          # La app se sirve en /sstcontrol-frontend/ (Pages de proyecto) — ajusta el <base href>.
+          sed -i 's|<base href="/" />|<base href="/sstcontrol-frontend/" />|g' index.html
+          # Blazor WASM es una SPA: sin esto, refrescar una ruta que no sea la raíz da 404 en Pages.
+          cp index.html 404.html
+          # Evita que Pages procese la salida con Jekyll (rutas que empiezan con "_" como _framework).
+          touch .nojekyll
+
+      - name: Subir artefacto de Pages
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: release/wwwroot
+
+  desplegar:
+    needs: build-y-publicar
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.despliegue.outputs.page_url }}
+    steps:
+      - name: Desplegar en GitHub Pages
+        id: despliegue
+        uses: actions/deploy-pages@v4
