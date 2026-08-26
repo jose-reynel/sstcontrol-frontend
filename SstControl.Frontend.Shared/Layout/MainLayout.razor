@@ -1,0 +1,45 @@
+@inherits LayoutComponentBase
+@inject ServicioAutenticacion ServicioAuth
+@inject NavigationManager Navegacion
+
+<AuthorizeView>
+    <Authorized>
+        <div class="app-shell">
+            <aside class="barra-lateral">
+                <div class="marca">
+                    <span class="marca__sello">S</span>
+                    SstControl
+                </div>
+                <NavMenu />
+            </aside>
+
+            <div>
+                <header class="barra-superior">
+                    <div></div>
+                    <div class="usuario-sesion">
+                        <div>
+                            <div class="usuario-sesion__nombre">@context.User.Identity?.Name</div>
+                            <div class="usuario-sesion__roles">@string.Join(" · ", context.User.FindAll(System.Security.Claims.ClaimTypes.Role).Select(c => c.Value))</div>
+                        </div>
+                        <button class="boton boton--pequeno" @onclick="CerrarSesionAsync">Cerrar sesión</button>
+                    </div>
+                </header>
+
+                <main class="contenido">
+                    @Body
+                </main>
+            </div>
+        </div>
+    </Authorized>
+    <NotAuthorized>
+        @Body
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    private async Task CerrarSesionAsync()
+    {
+        await ServicioAuth.CerrarSesionAsync();
+        Navegacion.NavigateTo("/login");
+    }
+}

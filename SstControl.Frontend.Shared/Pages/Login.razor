@@ -1,0 +1,62 @@
+@page "/login"
+@attribute [AllowAnonymous]
+@inject ServicioAutenticacion ServicioAuth
+@inject NavigationManager Navegacion
+
+<div class="pantalla-acceso">
+    <div class="tarjeta-acceso">
+        <div class="tarjeta-acceso__marca">
+            <span class="tarjeta-acceso__sello">S</span>
+            <div>
+                <h1 style="margin:0;font-size:1.15rem;">SstControl</h1>
+                <div style="color:var(--color-tinta-suave);font-size:.82rem;">Seguridad y Salud en el Trabajo</div>
+            </div>
+        </div>
+
+        @if (_error is not null)
+        {
+            <div class="mensaje-error">@_error</div>
+        }
+
+        <EditForm Model="_modelo" OnValidSubmit="IniciarSesionAsync">
+            <div class="campo">
+                <label for="usuario">Usuario</label>
+                <InputText id="usuario" @bind-Value="_modelo.NombreUsuario" autofocus />
+            </div>
+            <div class="campo">
+                <label for="clave">Contraseña</label>
+                <InputText id="clave" type="password" @bind-Value="_modelo.Clave" />
+            </div>
+            <button type="submit" class="boton boton--primario" style="width:100%;justify-content:center;" disabled="@_enviando">
+                @(_enviando ? "Ingresando…" : "Ingresar")
+            </button>
+        </EditForm>
+    </div>
+</div>
+
+@code {
+    [SupplyParameterFromQuery] private string? Volver { get; set; }
+
+    private readonly ModeloAcceso _modelo = new();
+    private string? _error;
+    private bool _enviando;
+
+    private async Task IniciarSesionAsync()
+    {
+        _enviando = true;
+        _error = null;
+
+        var (exito, error) = await ServicioAuth.IniciarSesionAsync(_modelo.NombreUsuario, _modelo.Clave);
+        _enviando = false;
+
+        if (!exito) { _error = error; return; }
+
+        Navegacion.NavigateTo(string.IsNullOrWhiteSpace(Volver) ? "/" : $"/{Volver}");
+    }
+
+    private class ModeloAcceso
+    {
+        public string NombreUsuario { get; set; } = "";
+        public string Clave { get; set; } = "";
+    }
+}

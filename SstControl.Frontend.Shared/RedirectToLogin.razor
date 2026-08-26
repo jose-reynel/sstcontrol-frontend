@@ -1,0 +1,6 @@
+@inject NavigationManager Navegacion
+
+@code {
+    protected override void OnInitialized() =>
+        Navegacion.NavigateTo($"/login?volver={Uri.EscapeDataString(Navegacion.ToBaseRelativePath(Navegacion.Uri))}");
+}

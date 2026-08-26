@@ -1,0 +1,47 @@
+@page "/administracion/permisos"
+@attribute [Authorize]
+@inject ServicioApi Api
+
+<span class="encabezado-pagina__ojo">Administración · Control de acceso</span>
+<h1>Permisos</h1>
+
+<div class="tarjeta">
+    @if (_cargando)
+    {
+        <p class="estado-vacio">Cargando…</p>
+    }
+    else if (_permisos.Count == 0)
+    {
+        <p class="estado-vacio">No hay permisos registrados.</p>
+    }
+    else
+    {
+        <table>
+            <thead><tr><th>Código</th><th>Descripción</th><th>Módulo</th></tr></thead>
+            <tbody>
+                @foreach (var grupo in _permisos.GroupBy(p => p.Modulo).OrderBy(g => g.Key))
+                {
+                    @foreach (var permiso in grupo)
+                    {
+                        <tr>
+                            <td class="dato-mono">@permiso.Codigo</td>
+                            <td>@permiso.Descripcion</td>
+                            <td>@permiso.Modulo</td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    }
+</div>
+
+@code {
+    private bool _cargando = true;
+    private List<PermisoDto> _permisos = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        _permisos = await Api.ObtenerPermisosAsync();
+        _cargando = false;
+    }
+}

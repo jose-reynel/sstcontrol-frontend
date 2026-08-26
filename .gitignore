@@ -1,0 +1,27 @@
+## .NET / Visual Studio / Rider
+bin/
+obj/
+*.user
+*.userosscache
+*.suo
+.vs/
+.idea/
+
+## Maui / móvil
+*.ap_
+*.apk
+*.aab
+*.ipa
+*.appx
+*.appxbundle
+*.msix
+**/Platforms/Android/bin/
+**/Platforms/Android/obj/
+
+## Configuración local con secretos
+appsettings.Development.json
+appsettings.Local.json
+
+## Salida de publicación
+publish/
+release/

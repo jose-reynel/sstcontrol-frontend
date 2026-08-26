@@ -1,0 +1,114 @@
+@page "/empresas"
+@attribute [Authorize]
+@inject ServicioApi Api
+
+<span class="encabezado-pagina__ojo">Organización cliente</span>
+<h1>Empresas y sedes</h1>
+
+<AuthorizeView Context="contextoAuth">
+    @{ var puedeGestionar = contextoAuth.User.TienePermiso("empresas.gestionar"); }
+
+    @if (puedeGestionar)
+    {
+        <div class="tarjeta">
+            <div class="tarjeta__titulo"><h2>Nueva empresa</h2></div>
+            <EditForm Model="_nuevaEmpresa" OnValidSubmit="CrearEmpresaAsync">
+                <div class="formulario-fila">
+                    <div class="campo">
+                        <label>Nombre de la empresa</label>
+                        <InputText @bind-Value="_nuevaEmpresa.Nombre" />
+                    </div>
+                </div>
+                <button type="submit" class="boton boton--primario" disabled="@string.IsNullOrWhiteSpace(_nuevaEmpresa.Nombre)">Registrar empresa</button>
+            </EditForm>
+        </div>
+    }
+
+    @if (_cargando)
+    {
+        <p class="estado-vacio">Cargando…</p>
+    }
+    else if (_empresas.Count == 0)
+    {
+        <p class="estado-vacio">Todavía no hay empresas registradas.</p>
+    }
+    else
+    {
+        @foreach (var empresa in _empresas)
+        {
+            <div class="tarjeta">
+                <div class="tarjeta__titulo">
+                    <h2>@empresa.Nombre</h2>
+                    <span class="dato-mono" style="color:var(--color-tinta-suave);">#@empresa.IdEmpresa</span>
+                </div>
+
+                @if (empresa.Sedes.Count == 0)
+                {
+                    <p class="estado-vacio">Sin sedes registradas.</p>
+                }
+                else
+                {
+                    <table>
+                        <thead><tr><th>Sede</th></tr></thead>
+                        <tbody>
+                            @foreach (var sede in empresa.Sedes)
+                            {
+                                <tr><td>@sede.Nombre</td></tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+
+                @if (puedeGestionar)
+                {
+                    <EditForm Model="_nuevaSedePorEmpresa[empresa.IdEmpresa]" OnValidSubmit="() => CrearSedeAsync(empresa.IdEmpresa)" class="formulario-fila" style="margin-top:.8rem;align-items:flex-end;">
+                        <div class="campo" style="margin-bottom:0;">
+                            <label>Nueva sede</label>
+                            <InputText @bind-Value="_nuevaSedePorEmpresa[empresa.IdEmpresa].Nombre" placeholder="Nombre de la sede" />
+                        </div>
+                        <button type="submit" class="boton boton--pequeno" style="height:fit-content;">Agregar sede</button>
+                    </EditForm>
+                }
+            </div>
+        }
+    }
+</AuthorizeView>
+
+@code {
+    private bool _cargando = true;
+    private List<EmpresaDto> _empresas = [];
+    private readonly Dictionary<int, ModeloNombre> _nuevaSedePorEmpresa = [];
+    private readonly ModeloNombre _nuevaEmpresa = new();
+
+    protected override async Task OnInitializedAsync() => await CargarAsync();
+
+    private async Task CargarAsync()
+    {
+        _cargando = true;
+        _empresas = await Api.ObtenerEmpresasAsync();
+        foreach (var empresa in _empresas)
+            _nuevaSedePorEmpresa.TryAdd(empresa.IdEmpresa, new ModeloNombre());
+        _cargando = false;
+    }
+
+    private async Task CrearEmpresaAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_nuevaEmpresa.Nombre)) return;
+        var creada = await Api.CrearEmpresaAsync(_nuevaEmpresa.Nombre);
+        if (creada is not null)
+        {
+            _nuevaEmpresa.Nombre = "";
+            await CargarAsync();
+        }
+    }
+
+    private async Task CrearSedeAsync(int idEmpresa)
+    {
+        var nombre = _nuevaSedePorEmpresa[idEmpresa].Nombre;
+        if (string.IsNullOrWhiteSpace(nombre)) return;
+        var creada = await Api.CrearSedeAsync(idEmpresa, nombre);
+        if (creada is not null) await CargarAsync();
+    }
+
+    private class ModeloNombre { public string Nombre { get; set; } = ""; }
+}

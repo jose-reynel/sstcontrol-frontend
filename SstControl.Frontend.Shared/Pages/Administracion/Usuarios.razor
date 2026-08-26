@@ -1,0 +1,82 @@
+@page "/administracion/usuarios"
+@attribute [Authorize]
+@inject ServicioApi Api
+
+<span class="encabezado-pagina__ojo">Administración · Control de acceso</span>
+<h1>Usuarios</h1>
+
+<div class="tarjeta">
+    @if (_cargando)
+    {
+        <p class="estado-vacio">Cargando…</p>
+    }
+    else
+    {
+        <table>
+            <thead><tr><th>Usuario</th><th>Nombre completo</th><th>Roles</th><th>Grupos</th><th>Asignar</th></tr></thead>
+            <tbody>
+                @foreach (var usuario in _usuarios)
+                {
+                    <tr>
+                        <td class="dato-mono">@usuario.NombreUsuario</td>
+                        <td>@usuario.NombreCompleto</td>
+                        <td>@(usuario.Roles.Count == 0 ? "—" : string.Join(", ", usuario.Roles))</td>
+                        <td>@(usuario.Grupos.Count == 0 ? "—" : string.Join(", ", usuario.Grupos))</td>
+                        <td style="display:flex;gap:.4rem;">
+                            <select class="campo" style="padding:.3rem .4rem;border:1px solid var(--color-borde);border-radius:8px;" @onchange="e => AsignarRolAsync(usuario.IdUsuario, e)">
+                                <option value="">+ Rol…</option>
+                                @foreach (var rol in _roles)
+                                {
+                                    <option value="@rol.IdRol">@rol.Nombre</option>
+                                }
+                            </select>
+                            <select class="campo" style="padding:.3rem .4rem;border:1px solid var(--color-borde);border-radius:8px;" @onchange="e => AsignarGrupoAsync(usuario.IdUsuario, e)">
+                                <option value="">+ Grupo…</option>
+                                @foreach (var grupo in _grupos)
+                                {
+                                    <option value="@grupo.IdGrupo">@grupo.Nombre</option>
+                                }
+                            </select>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</div>
+
+@code {
+    private bool _cargando = true;
+    private List<UsuarioResumenDto> _usuarios = [];
+    private List<RolDto> _roles = [];
+    private List<GrupoDto> _grupos = [];
+
+    protected override async Task OnInitializedAsync() => await CargarAsync();
+
+    private async Task CargarAsync()
+    {
+        _cargando = true;
+        _usuarios = await Api.ObtenerUsuariosAsync();
+        _roles = await Api.ObtenerRolesAsync();
+        _grupos = await Api.ObtenerGruposAsync();
+        _cargando = false;
+    }
+
+    private async Task AsignarRolAsync(int idUsuario, ChangeEventArgs evento)
+    {
+        if (evento.Value is string valor && int.TryParse(valor, out var idRol))
+        {
+            await Api.AsignarRolAsync(idUsuario, idRol);
+            await CargarAsync();
+        }
+    }
+
+    private async Task AsignarGrupoAsync(int idUsuario, ChangeEventArgs evento)
+    {
+        if (evento.Value is string valor && int.TryParse(valor, out var idGrupo))
+        {
+            await Api.AsignarGrupoAsync(idUsuario, idGrupo);
+            await CargarAsync();
+        }
+    }
+}

@@ -1,0 +1,128 @@
+@page "/documentos"
+@attribute [Authorize]
+@inject ServicioApi Api
+
+<span class="encabezado-pagina__ojo">Gestión documental</span>
+<h1>Documentos</h1>
+
+<AuthorizeView Context="contextoAuth">
+    @{
+        var puedeFirmar = contextoAuth.User.TienePermiso("documentos.firmar");
+        var puedeEliminar = contextoAuth.User.TienePermiso("documentos.eliminar");
+    }
+
+    <div class="tarjeta">
+        <div class="tarjeta__titulo"><h2>Registrar documento</h2></div>
+        <EditForm Model="_nuevo" OnValidSubmit="CrearAsync">
+            <div class="formulario-fila">
+                <div class="campo">
+                    <label>Id. de tipo de documento</label>
+                    <InputNumber @bind-Value="_nuevo.IdTipoDocumento" />
+                </div>
+                <div class="campo">
+                    <label>Colaborador</label>
+                    <InputText @bind-Value="_nuevo.NombreColaborador" />
+                </div>
+                <div class="campo">
+                    <label>Actividad</label>
+                    <InputText @bind-Value="_nuevo.Actividad" />
+                </div>
+                <div class="campo">
+                    <label>Fecha de vencimiento</label>
+                    <InputDate @bind-Value="_nuevo.FechaVencimiento" />
+                </div>
+            </div>
+            <p style="font-size:.78rem;color:var(--color-tinta-suave);margin:-.3rem 0 .8rem;">
+                El catálogo de tipos de documento aún no tiene un endpoint de consulta en la API —
+                por ahora se ingresa el identificador numérico directamente.
+            </p>
+            <button type="submit" class="boton boton--primario">Registrar documento</button>
+        </EditForm>
+    </div>
+
+    <div class="tarjeta">
+        @if (_cargando)
+        {
+            <p class="estado-vacio">Cargando…</p>
+        }
+        else if (_documentos.Count == 0)
+        {
+            <p class="estado-vacio">Todavía no hay documentos registrados.</p>
+        }
+        else
+        {
+            <table>
+                <thead>
+                    <tr>
+                        <th>Colaborador</th><th>Tipo</th><th>Actividad</th><th>Captura</th><th>Vence</th><th>Estado</th><th>Aprobó</th><th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var doc in _documentos)
+                    {
+                        <tr>
+                            <td>@doc.NombreColaborador</td>
+                            <td>@doc.NombreTipo</td>
+                            <td>@doc.Actividad</td>
+                            <td class="dato-mono">@doc.FechaCaptura</td>
+                            <td class="dato-mono">@doc.FechaVencimiento</td>
+                            <td><EstadoDocumento Estado="@doc.Estado" FechaVencimiento="@doc.FechaVencimiento" /></td>
+                            <td>@(doc.NombreQuienAprueba ?? "—")</td>
+                            <td style="display:flex;gap:.4rem;">
+                                @if (puedeFirmar && doc.Estado == "Pendiente")
+                                {
+                                    <button class="boton boton--pequeno" @onclick="() => FirmarAsync(doc.IdDocumento)">Firmar</button>
+                                }
+                                <button class="boton boton--pequeno" @onclick="() => RenovarAsync(doc.IdDocumento)">Renovar</button>
+                                @if (puedeEliminar)
+                                {
+                                    <button class="boton boton--pequeno boton--peligro" @onclick="() => EliminarAsync(doc.IdDocumento)">Eliminar</button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+</AuthorizeView>
+
+@code {
+    private bool _cargando = true;
+    private List<DocumentoDto> _documentos = [];
+    private readonly ModeloDocumento _nuevo = new();
+
+    protected override async Task OnInitializedAsync() => await CargarAsync();
+
+    private async Task CargarAsync()
+    {
+        _cargando = true;
+        _documentos = await Api.ObtenerDocumentosAsync();
+        _cargando = false;
+    }
+
+    private async Task CrearAsync()
+    {
+        var datos = new CrearDocumentoDto(_nuevo.IdTipoDocumento, _nuevo.NombreColaborador, _nuevo.Actividad,
+            _nuevo.FechaVencimiento, null, null);
+        var creado = await Api.CrearDocumentoAsync(datos);
+        if (creado is not null)
+        {
+            _nuevo.NombreColaborador = "";
+            _nuevo.Actividad = "";
+            await CargarAsync();
+        }
+    }
+
+    private async Task FirmarAsync(int id) { await Api.FirmarDocumentoAsync(id); await CargarAsync(); }
+    private async Task RenovarAsync(int id) { await Api.RenovarDocumentoAsync(id); await CargarAsync(); }
+    private async Task EliminarAsync(int id) { await Api.EliminarDocumentoAsync(id); await CargarAsync(); }
+
+    private class ModeloDocumento
+    {
+        public int IdTipoDocumento { get; set; } = 1;
+        public string NombreColaborador { get; set; } = "";
+        public string Actividad { get; set; } = "";
+        public DateOnly FechaVencimiento { get; set; } = DateOnly.FromDateTime(DateTime.Today.AddDays(30));
+    }
+}

@@ -1,0 +1,12 @@
+/* Ajustes específicos del host Maui (no aplican en Web). El sistema de diseño
+   completo vive en SstControl.Frontend.Shared/wwwroot/css/app.css. */
+#blazor-error-ui {
+    background: var(--color-peligro, #B23A26);
+    color: #fff;
+    display: none;
+    padding: .8rem 1rem;
+    position: fixed;
+    inset: auto 0 0 0;
+    z-index: 1000;
+}
+#blazor-error-ui .dismiss { float: right; cursor: pointer; }

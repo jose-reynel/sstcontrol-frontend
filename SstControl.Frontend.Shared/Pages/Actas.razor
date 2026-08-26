@@ -1,0 +1,124 @@
+@page "/actas"
+@attribute [Authorize]
+@inject ServicioApi Api
+
+<span class="encabezado-pagina__ojo">Reuniones y capacitaciones</span>
+<h1>Actas</h1>
+
+<AuthorizeView Context="contextoAuth">
+    @{ var puedeCrear = contextoAuth.User.TienePermiso("actas.crear"); }
+
+    @if (puedeCrear)
+    {
+        <div class="tarjeta">
+            <div class="tarjeta__titulo"><h2>Registrar acta</h2></div>
+            <EditForm Model="_nueva" OnValidSubmit="CrearAsync">
+                <div class="formulario-fila">
+                    <div class="campo">
+                        <label>Id. de empresa</label>
+                        <InputNumber @bind-Value="_nueva.IdEmpresa" />
+                    </div>
+                    <div class="campo">
+                        <label>Id. de sede</label>
+                        <InputNumber @bind-Value="_nueva.IdSede" />
+                    </div>
+                    <div class="campo">
+                        <label>Tipo</label>
+                        <InputSelect @bind-Value="_nueva.Tipo">
+                            <option value="Reunion">Reunión</option>
+                            <option value="Capacitacion">Capacitación</option>
+                        </InputSelect>
+                    </div>
+                    <div class="campo">
+                        <label>Fecha</label>
+                        <InputDate @bind-Value="_nueva.Fecha" />
+                    </div>
+                </div>
+                <div class="campo">
+                    <label>Título</label>
+                    <InputText @bind-Value="_nueva.Titulo" />
+                </div>
+                <div class="formulario-fila">
+                    <div class="campo">
+                        <label>Asistentes</label>
+                        <InputTextArea @bind-Value="_nueva.Asistentes" />
+                    </div>
+                    <div class="campo">
+                        <label>Notas</label>
+                        <InputTextArea @bind-Value="_nueva.Notas" />
+                    </div>
+                </div>
+                <button type="submit" class="boton boton--primario">Registrar acta</button>
+            </EditForm>
+        </div>
+    }
+
+    <div class="tarjeta">
+        @if (_cargando)
+        {
+            <p class="estado-vacio">Cargando…</p>
+        }
+        else if (_actas.Count == 0)
+        {
+            <p class="estado-vacio">Todavía no hay actas registradas, o tu perfil no tiene permiso para verlas.</p>
+        }
+        else
+        {
+            <table>
+                <thead><tr><th>Fecha</th><th>Tipo</th><th>Título</th><th>Creó</th></tr></thead>
+                <tbody>
+                    @foreach (var acta in _actas)
+                    {
+                        <tr>
+                            <td class="dato-mono">@acta.Fecha</td>
+                            <td>@(acta.Tipo == "Capacitacion" ? "Capacitación" : "Reunión")</td>
+                            <td>@acta.Titulo</td>
+                            <td>@acta.NombreCreador</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+</AuthorizeView>
+
+@code {
+    private bool _cargando = true;
+    private List<ActaDto> _actas = [];
+    private readonly ModeloActa _nueva = new();
+
+    protected override async Task OnInitializedAsync() => await CargarAsync();
+
+    private async Task CargarAsync()
+    {
+        _cargando = true;
+        try { _actas = await Api.ObtenerActasAsync(); }
+        catch { _actas = []; }
+        _cargando = false;
+    }
+
+    private async Task CrearAsync()
+    {
+        var datos = new CrearActaDto(_nueva.IdEmpresa, _nueva.IdSede, _nueva.Tipo, _nueva.Titulo, _nueva.Fecha,
+            _nueva.Asistentes, _nueva.Notas);
+        var creada = await Api.CrearActaAsync(datos);
+        if (creada is not null)
+        {
+            _nueva.Titulo = "";
+            _nueva.Asistentes = null;
+            _nueva.Notas = null;
+            await CargarAsync();
+        }
+    }
+
+    private class ModeloActa
+    {
+        public int IdEmpresa { get; set; }
+        public int IdSede { get; set; }
+        public string Tipo { get; set; } = "Reunion";
+        public string Titulo { get; set; } = "";
+        public DateOnly Fecha { get; set; } = DateOnly.FromDateTime(DateTime.Today);
+        public string? Asistentes { get; set; }
+        public string? Notas { get; set; }
+    }
+}

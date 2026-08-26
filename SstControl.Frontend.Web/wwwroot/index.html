@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>SstControl</title>
+    <base href="/" />
+    <meta name="theme-color" content="#0F6E5C" />
+    <link rel="icon" type="image/png" href="icons/icon-192.png" />
+    <link rel="manifest" href="manifest.json" />
+    <link rel="stylesheet" href="_content/SstControl.Frontend.Shared/css/app.css" />
+    <link rel="apple-touch-icon" href="icons/icon-192.png" />
+</head>
+<body>
+    <div id="app">
+        <div class="pantalla-acceso">
+            <div class="tarjeta-acceso" style="text-align:center;">
+                <div class="tarjeta-acceso__sello" style="margin:0 auto 1rem;">S</div>
+                Cargando SstControl…
+            </div>
+        </div>
+    </div>
+
+    <div id="blazor-error-ui">
+        Ocurrió un error inesperado.
+        <a href="" class="reload">Recargar</a>
+        <a class="dismiss">🗙</a>
+    </div>
+    <script src="_framework/blazor.webassembly.js"></script>
+    <script>navigator.serviceWorker?.register('service-worker.js');</script>
+</body>
+</html>

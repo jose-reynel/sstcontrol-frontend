@@ -1,0 +1,40 @@
+@using System.Security.Claims
+@inject NavigationManager Navegacion
+
+<nav class="nav-modulo">
+    <span class="nav-modulo__titulo">General</span>
+    <NavLink class="nav-enlace" href="/" Match="NavLinkMatch.All">Panel</NavLink>
+    <NavLink class="nav-enlace" href="/documentos">Documentos</NavLink>
+
+    @if (TienePermiso("actas.ver"))
+    {
+        <NavLink class="nav-enlace" href="/actas">Actas</NavLink>
+    }
+
+    <NavLink class="nav-enlace" href="/empresas">Empresas</NavLink>
+</nav>
+
+@if (TienePermiso("accesos.administrar"))
+{
+    <nav class="nav-modulo">
+        <span class="nav-modulo__titulo">Administración</span>
+        <NavLink class="nav-enlace" href="/administracion/usuarios">Usuarios</NavLink>
+        <NavLink class="nav-enlace" href="/administracion/roles">Roles</NavLink>
+        <NavLink class="nav-enlace" href="/administracion/perfiles">Perfiles</NavLink>
+        <NavLink class="nav-enlace" href="/administracion/permisos">Permisos</NavLink>
+        <NavLink class="nav-enlace" href="/administracion/grupos">Grupos</NavLink>
+    </nav>
+}
+
+@code {
+    [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacionTask { get; set; }
+    private ClaimsPrincipal? _usuario;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (EstadoAutenticacionTask is not null)
+            _usuario = (await EstadoAutenticacionTask).User;
+    }
+
+    private bool TienePermiso(string codigo) => _usuario is not null && _usuario.TienePermiso(codigo);
+}

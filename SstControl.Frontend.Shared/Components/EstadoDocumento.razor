@@ -1,0 +1,23 @@
+@* Insignia de estado reutilizada en Documentos y en el Panel. El backend solo
+   distingue "Pendiente"/"Aprobado" (ver EstadoDocumento en el dominio); el
+   estado "Vencido" se calcula aquí comparando la fecha de vencimiento, y
+   "Aprobado" se muestra como "Firmado" con el sello — el término que usan
+   los responsables de SST en el día a día. *@
+
+@if (Estado == "Aprobado")
+{
+    <span class="insignia insignia--firmado"><span class="sello-firma">✓</span> Firmado</span>
+}
+else if (FechaVencimiento < DateOnly.FromDateTime(DateTime.Today))
+{
+    <span class="insignia insignia--vencido">Vencido</span>
+}
+else
+{
+    <span class="insignia insignia--pendiente">Pendiente</span>
+}
+
+@code {
+    [Parameter, EditorRequired] public string Estado { get; set; } = "";
+    [Parameter] public DateOnly FechaVencimiento { get; set; } = DateOnly.MaxValue;
+}

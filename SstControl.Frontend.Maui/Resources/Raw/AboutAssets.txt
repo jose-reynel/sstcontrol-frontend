@@ -1,0 +1,4 @@
+Los archivos de esta carpeta se empaquetan con la app (MauiAsset) y se leen en
+tiempo de ejecución con FileSystem.OpenAppPackageFileAsync("nombre-archivo").
+Por ahora no se usa ningún asset en bruto — carpeta reservada para archivos
+futuros (por ejemplo, datos de referencia offline).

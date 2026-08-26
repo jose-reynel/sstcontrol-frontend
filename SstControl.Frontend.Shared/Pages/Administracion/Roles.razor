@@ -1,0 +1,44 @@
+@page "/administracion/roles"
+@attribute [Authorize]
+@inject ServicioApi Api
+
+<span class="encabezado-pagina__ojo">Administración · Control de acceso</span>
+<h1>Roles</h1>
+
+<div class="tarjeta">
+    @if (_cargando)
+    {
+        <p class="estado-vacio">Cargando…</p>
+    }
+    else if (_roles.Count == 0)
+    {
+        <p class="estado-vacio">No hay roles registrados.</p>
+    }
+    else
+    {
+        <table>
+            <thead><tr><th>Nombre</th><th>Descripción</th><th>Perfiles</th></tr></thead>
+            <tbody>
+                @foreach (var rol in _roles)
+                {
+                    <tr>
+                        <td><strong>@rol.Nombre</strong></td>
+                        <td>@(rol.Descripcion ?? "—")</td>
+                        <td>@(rol.NombresPerfiles.Count == 0 ? "—" : string.Join(", ", rol.NombresPerfiles))</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</div>
+
+@code {
+    private bool _cargando = true;
+    private List<RolDto> _roles = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        _roles = await Api.ObtenerRolesAsync();
+        _cargando = false;
+    }
+}

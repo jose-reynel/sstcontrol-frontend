@@ -1,0 +1,26 @@
+@* Router único, compartido entre la app Web (WebAssembly) y la app Maui (Blazor
+   Hybrid). Cada proyecto host solo necesita renderizar <Routes /> como
+   componente raíz — ver Program.cs (Web) y MauiProgram.cs (Maui). *@
+
+<CascadingAuthenticationState>
+    <Router AppAssembly="@typeof(MarcadorEnsamblado).Assembly">
+        <Found Context="datosRuta">
+            <AuthorizeRouteView RouteData="@datosRuta" DefaultLayout="@typeof(Layout.MainLayout)">
+                <NotAuthorized>
+                    <RedirectToLogin />
+                </NotAuthorized>
+            </AuthorizeRouteView>
+            <FocusOnNavigate RouteData="@datosRuta" Selector="h1" />
+        </Found>
+        <NotFound>
+            <LayoutView Layout="@typeof(Layout.MainLayout)">
+                <div class="pagina-vacia">
+                    <span class="pagina-vacia__sello">?</span>
+                    <h1>No encontramos esta página</h1>
+                    <p>Revisa la dirección o vuelve al panel principal.</p>
+                    <a class="boton boton--primario" href="/">Ir al panel</a>
+                </div>
+            </LayoutView>
+        </NotFound>
+    </Router>
+</CascadingAuthenticationState>
