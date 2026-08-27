@@ -13,26 +13,26 @@ else
 {
     <div class="rejilla-resumen">
         <div class="tarjeta-resumen">
-            <div class="tarjeta-resumen__cifra">@_empresas.Count</div>
+            <div class="tarjeta-resumen__cifra">@_totalEmpresas</div>
             <div class="tarjeta-resumen__etiqueta">Empresas registradas</div>
         </div>
         <div class="tarjeta-resumen">
-            <div class="tarjeta-resumen__cifra">@_documentos.Count(EstaPendienteVigente)</div>
-            <div class="tarjeta-resumen__etiqueta">Documentos pendientes de firma</div>
+            <div class="tarjeta-resumen__cifra">@_documentosRecientes.Count(EstaPendienteVigente)</div>
+            <div class="tarjeta-resumen__etiqueta">Documentos pendientes de firma (últimos @_documentosRecientes.Count)</div>
         </div>
         <div class="tarjeta-resumen">
-            <div class="tarjeta-resumen__cifra">@_documentos.Count(EstaVencido)</div>
-            <div class="tarjeta-resumen__etiqueta">Documentos vencidos</div>
+            <div class="tarjeta-resumen__cifra">@_documentosRecientes.Count(EstaVencido)</div>
+            <div class="tarjeta-resumen__etiqueta">Documentos vencidos (últimos @_documentosRecientes.Count)</div>
         </div>
         <div class="tarjeta-resumen">
-            <div class="tarjeta-resumen__cifra">@_actas.Count</div>
+            <div class="tarjeta-resumen__cifra">@_totalActas</div>
             <div class="tarjeta-resumen__etiqueta">Actas registradas</div>
         </div>
     </div>
 
     <div class="tarjeta">
         <div class="tarjeta__titulo"><h2>Últimos documentos</h2><a href="/documentos">Ver todos</a></div>
-        @if (_documentos.Count == 0)
+        @if (_documentosRecientes.Count == 0)
         {
             <p class="estado-vacio">Todavía no hay documentos registrados.</p>
         }
@@ -41,7 +41,7 @@ else
             <table>
                 <thead><tr><th>Colaborador</th><th>Tipo</th><th>Vence</th><th>Estado</th></tr></thead>
                 <tbody>
-                    @foreach (var doc in _documentos.OrderByDescending(d => d.FechaCaptura).Take(5))
+                    @foreach (var doc in _documentosRecientes)
                     {
                         <tr>
                             <td>@doc.NombreColaborador</td>
@@ -58,19 +58,22 @@ else
 
 @code {
     private bool _cargando = true;
-    private List<EmpresaDto> _empresas = [];
-    private List<DocumentoDto> _documentos = [];
-    private List<ActaDto> _actas = [];
+    private int _totalEmpresas;
+    private int _totalActas;
+    private List<DocumentoDto> _documentosRecientes = [];
 
     protected override async Task OnInitializedAsync()
     {
-        _empresas = await Api.ObtenerEmpresasAsync();
-        _documentos = await Api.ObtenerDocumentosAsync();
+        var empresas = await Api.ObtenerEmpresasAsync();
+        _totalEmpresas = empresas.Count;
+
+        var paginaDocumentos = await Api.ObtenerDocumentosAsync(pagina: 1, tamanioPagina: 5);
+        _documentosRecientes = paginaDocumentos.Elementos;
 
         // Actas requiere el permiso "actas.ver"; si el usuario no lo tiene, la API
         // responde 403 y aquí simplemente lo tratamos como "sin actas visibles".
-        try { _actas = await Api.ObtenerActasAsync(); }
-        catch { _actas = []; }
+        try { _totalActas = (await Api.ObtenerActasAsync(pagina: 1, tamanioPagina: 1)).TotalElementos; }
+        catch (ExcepcionApi) { _totalActas = 0; }
 
         _cargando = false;
     }

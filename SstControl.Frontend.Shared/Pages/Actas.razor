@@ -5,6 +5,11 @@
 <span class="encabezado-pagina__ojo">Reuniones y capacitaciones</span>
 <h1>Actas</h1>
 
+@if (_error is not null)
+{
+    <div class="mensaje-error">@_error</div>
+}
+
 <AuthorizeView Context="contextoAuth">
     @{ var puedeCrear = contextoAuth.User.TienePermiso("actas.crear"); }
 
@@ -48,17 +53,19 @@
                         <InputTextArea @bind-Value="_nueva.Notas" />
                     </div>
                 </div>
-                <button type="submit" class="boton boton--primario">Registrar acta</button>
+                <button type="submit" class="boton boton--primario" disabled="@_guardando">
+                    @(_guardando ? "Registrando…" : "Registrar acta")
+                </button>
             </EditForm>
         </div>
     }
 
     <div class="tarjeta">
-        @if (_cargando)
+        @if (_cargando && _pagina.Elementos.Count == 0)
         {
             <p class="estado-vacio">Cargando…</p>
         }
-        else if (_actas.Count == 0)
+        else if (_pagina.Elementos.Count == 0)
         {
             <p class="estado-vacio">Todavía no hay actas registradas, o tu perfil no tiene permiso para verlas.</p>
         }
@@ -67,7 +74,7 @@
             <table>
                 <thead><tr><th>Fecha</th><th>Tipo</th><th>Título</th><th>Creó</th></tr></thead>
                 <tbody>
-                    @foreach (var acta in _actas)
+                    @foreach (var acta in _pagina.Elementos)
                     {
                         <tr>
                             <td class="dato-mono">@acta.Fecha</td>
@@ -78,37 +85,68 @@
                     }
                 </tbody>
             </table>
+
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-top:1rem;">
+                <span class="estado-vacio" style="padding:0;">
+                    Mostrando @_pagina.Elementos.Count de @_pagina.TotalElementos acta(s)
+                </span>
+                @if (_pagina.HayMas)
+                {
+                    <button class="boton boton--pequeno" disabled="@_cargando" @onclick="CargarMasAsync">
+                        @(_cargando ? "Cargando…" : "Cargar más")
+                    </button>
+                }
+            </div>
         }
     </div>
 </AuthorizeView>
 
 @code {
+    private const int TamanioPagina = 20;
+
     private bool _cargando = true;
-    private List<ActaDto> _actas = [];
+    private bool _guardando;
+    private string? _error;
+    private PaginaDto<ActaDto> _pagina = new([], 1, TamanioPagina, 0);
     private readonly ModeloActa _nueva = new();
 
-    protected override async Task OnInitializedAsync() => await CargarAsync();
+    protected override async Task OnInitializedAsync() => await CargarAsync(1);
 
-    private async Task CargarAsync()
+    private async Task CargarAsync(int pagina)
     {
         _cargando = true;
-        try { _actas = await Api.ObtenerActasAsync(); }
-        catch { _actas = []; }
-        _cargando = false;
+        // No se limpia _error acá: si el usuario no tiene permiso "actas.ver" la
+        // API responde 403 y queremos que ese mensaje quede visible en pantalla,
+        // no un estado vacío silencioso indistinguible de "todavía no hay actas".
+        try
+        {
+            var nuevaPagina = await Api.ObtenerActasAsync(pagina, TamanioPagina);
+            _pagina = pagina == 1
+                ? nuevaPagina
+                : nuevaPagina with { Elementos = [.. _pagina.Elementos, .. nuevaPagina.Elementos] };
+            _error = null;
+        }
+        catch (ExcepcionApi ex) { _error = ex.Message; }
+        finally { _cargando = false; }
     }
+
+    private Task CargarMasAsync() => CargarAsync(_pagina.Pagina + 1);
 
     private async Task CrearAsync()
     {
-        var datos = new CrearActaDto(_nueva.IdEmpresa, _nueva.IdSede, _nueva.Tipo, _nueva.Titulo, _nueva.Fecha,
-            _nueva.Asistentes, _nueva.Notas);
-        var creada = await Api.CrearActaAsync(datos);
-        if (creada is not null)
+        _guardando = true;
+        try
         {
+            var datos = new CrearActaDto(_nueva.IdEmpresa, _nueva.IdSede, _nueva.Tipo, _nueva.Titulo, _nueva.Fecha,
+                _nueva.Asistentes, _nueva.Notas);
+            await Api.CrearActaAsync(datos);
             _nueva.Titulo = "";
             _nueva.Asistentes = null;
             _nueva.Notas = null;
-            await CargarAsync();
+            await CargarAsync(1);
         }
+        catch (ExcepcionApi ex) { _error = ex.Message; }
+        finally { _guardando = false; }
     }
 
     private class ModeloActa

@@ -5,6 +5,11 @@
 <span class="encabezado-pagina__ojo">Organización cliente</span>
 <h1>Empresas y sedes</h1>
 
+@if (_error is not null)
+{
+    <div class="mensaje-error">@_error</div>
+}
+
 <AuthorizeView Context="contextoAuth">
     @{ var puedeGestionar = contextoAuth.User.TienePermiso("empresas.gestionar"); }
 
@@ -76,6 +81,7 @@
 
 @code {
     private bool _cargando = true;
+    private string? _error;
     private List<EmpresaDto> _empresas = [];
     private readonly Dictionary<int, ModeloNombre> _nuevaSedePorEmpresa = [];
     private readonly ModeloNombre _nuevaEmpresa = new();
@@ -85,29 +91,40 @@
     private async Task CargarAsync()
     {
         _cargando = true;
-        _empresas = await Api.ObtenerEmpresasAsync();
-        foreach (var empresa in _empresas)
-            _nuevaSedePorEmpresa.TryAdd(empresa.IdEmpresa, new ModeloNombre());
-        _cargando = false;
+        try
+        {
+            _empresas = await Api.ObtenerEmpresasAsync();
+            foreach (var empresa in _empresas)
+                _nuevaSedePorEmpresa.TryAdd(empresa.IdEmpresa, new ModeloNombre());
+        }
+        catch (ExcepcionApi ex) { _error = ex.Message; }
+        finally { _cargando = false; }
     }
 
     private async Task CrearEmpresaAsync()
     {
         if (string.IsNullOrWhiteSpace(_nuevaEmpresa.Nombre)) return;
-        var creada = await Api.CrearEmpresaAsync(_nuevaEmpresa.Nombre);
-        if (creada is not null)
+        _error = null;
+        try
         {
+            await Api.CrearEmpresaAsync(_nuevaEmpresa.Nombre);
             _nuevaEmpresa.Nombre = "";
             await CargarAsync();
         }
+        catch (ExcepcionApi ex) { _error = ex.Message; }
     }
 
     private async Task CrearSedeAsync(int idEmpresa)
     {
         var nombre = _nuevaSedePorEmpresa[idEmpresa].Nombre;
         if (string.IsNullOrWhiteSpace(nombre)) return;
-        var creada = await Api.CrearSedeAsync(idEmpresa, nombre);
-        if (creada is not null) await CargarAsync();
+        _error = null;
+        try
+        {
+            await Api.CrearSedeAsync(idEmpresa, nombre);
+            await CargarAsync();
+        }
+        catch (ExcepcionApi ex) { _error = ex.Message; }
     }
 
     private class ModeloNombre { public string Nombre { get; set; } = ""; }

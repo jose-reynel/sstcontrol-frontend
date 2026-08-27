@@ -5,6 +5,11 @@
 <span class="encabezado-pagina__ojo">Administración · Control de acceso</span>
 <h1>Usuarios</h1>
 
+@if (_error is not null)
+{
+    <div class="mensaje-error">@_error</div>
+}
+
 <div class="tarjeta">
     @if (_cargando)
     {
@@ -47,6 +52,7 @@
 
 @code {
     private bool _cargando = true;
+    private string? _error;
     private List<UsuarioResumenDto> _usuarios = [];
     private List<RolDto> _roles = [];
     private List<GrupoDto> _grupos = [];
@@ -56,18 +62,23 @@
     private async Task CargarAsync()
     {
         _cargando = true;
-        _usuarios = await Api.ObtenerUsuariosAsync();
-        _roles = await Api.ObtenerRolesAsync();
-        _grupos = await Api.ObtenerGruposAsync();
-        _cargando = false;
+        try
+        {
+            _usuarios = await Api.ObtenerUsuariosAsync();
+            _roles = await Api.ObtenerRolesAsync();
+            _grupos = await Api.ObtenerGruposAsync();
+        }
+        catch (ExcepcionApi ex) { _error = ex.Message; }
+        finally { _cargando = false; }
     }
 
     private async Task AsignarRolAsync(int idUsuario, ChangeEventArgs evento)
     {
         if (evento.Value is string valor && int.TryParse(valor, out var idRol))
         {
-            await Api.AsignarRolAsync(idUsuario, idRol);
-            await CargarAsync();
+            _error = null;
+            try { await Api.AsignarRolAsync(idUsuario, idRol); await CargarAsync(); }
+            catch (ExcepcionApi ex) { _error = ex.Message; }
         }
     }
 
@@ -75,8 +86,9 @@
     {
         if (evento.Value is string valor && int.TryParse(valor, out var idGrupo))
         {
-            await Api.AsignarGrupoAsync(idUsuario, idGrupo);
-            await CargarAsync();
+            _error = null;
+            try { await Api.AsignarGrupoAsync(idUsuario, idGrupo); await CargarAsync(); }
+            catch (ExcepcionApi ex) { _error = ex.Message; }
         }
     }
 }

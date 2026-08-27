@@ -5,6 +5,11 @@
 <span class="encabezado-pagina__ojo">Gestión documental</span>
 <h1>Documentos</h1>
 
+@if (_error is not null)
+{
+    <div class="mensaje-error">@_error</div>
+}
+
 <AuthorizeView Context="contextoAuth">
     @{
         var puedeFirmar = contextoAuth.User.TienePermiso("documentos.firmar");
@@ -36,16 +41,18 @@
                 El catálogo de tipos de documento aún no tiene un endpoint de consulta en la API —
                 por ahora se ingresa el identificador numérico directamente.
             </p>
-            <button type="submit" class="boton boton--primario">Registrar documento</button>
+            <button type="submit" class="boton boton--primario" disabled="@_guardando">
+                @(_guardando ? "Registrando…" : "Registrar documento")
+            </button>
         </EditForm>
     </div>
 
     <div class="tarjeta">
-        @if (_cargando)
+        @if (_cargando && _pagina.Elementos.Count == 0)
         {
             <p class="estado-vacio">Cargando…</p>
         }
-        else if (_documentos.Count == 0)
+        else if (_pagina.Elementos.Count == 0)
         {
             <p class="estado-vacio">Todavía no hay documentos registrados.</p>
         }
@@ -58,7 +65,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                    @foreach (var doc in _documentos)
+                    @foreach (var doc in _pagina.Elementos)
                     {
                         <tr>
                             <td>@doc.NombreColaborador</td>
@@ -83,40 +90,77 @@
                     }
                 </tbody>
             </table>
+
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-top:1rem;">
+                <span class="estado-vacio" style="padding:0;">
+                    Mostrando @_pagina.Elementos.Count de @_pagina.TotalElementos documento(s)
+                </span>
+                @if (_pagina.HayMas)
+                {
+                    <button class="boton boton--pequeno" disabled="@_cargando" @onclick="CargarMasAsync">
+                        @(_cargando ? "Cargando…" : "Cargar más")
+                    </button>
+                }
+            </div>
         }
     </div>
 </AuthorizeView>
 
 @code {
+    private const int TamanioPagina = 20;
+
     private bool _cargando = true;
-    private List<DocumentoDto> _documentos = [];
+    private bool _guardando;
+    private string? _error;
+    private PaginaDto<DocumentoDto> _pagina = new([], 1, TamanioPagina, 0);
     private readonly ModeloDocumento _nuevo = new();
 
-    protected override async Task OnInitializedAsync() => await CargarAsync();
+    protected override async Task OnInitializedAsync() => await CargarAsync(1);
 
-    private async Task CargarAsync()
+    private async Task CargarAsync(int pagina)
     {
         _cargando = true;
-        _documentos = await Api.ObtenerDocumentosAsync();
-        _cargando = false;
+        _error = null;
+        try
+        {
+            var nuevaPagina = await Api.ObtenerDocumentosAsync(pagina, TamanioPagina);
+            _pagina = pagina == 1
+                ? nuevaPagina
+                : nuevaPagina with { Elementos = [.. _pagina.Elementos, .. nuevaPagina.Elementos] };
+        }
+        catch (ExcepcionApi ex) { _error = ex.Message; }
+        finally { _cargando = false; }
     }
+
+    private Task CargarMasAsync() => CargarAsync(_pagina.Pagina + 1);
 
     private async Task CrearAsync()
     {
-        var datos = new CrearDocumentoDto(_nuevo.IdTipoDocumento, _nuevo.NombreColaborador, _nuevo.Actividad,
-            _nuevo.FechaVencimiento, null, null);
-        var creado = await Api.CrearDocumentoAsync(datos);
-        if (creado is not null)
+        _guardando = true;
+        _error = null;
+        try
         {
+            var datos = new CrearDocumentoDto(_nuevo.IdTipoDocumento, _nuevo.NombreColaborador, _nuevo.Actividad,
+                _nuevo.FechaVencimiento, null, null);
+            await Api.CrearDocumentoAsync(datos);
             _nuevo.NombreColaborador = "";
             _nuevo.Actividad = "";
-            await CargarAsync();
+            await CargarAsync(1);
         }
+        catch (ExcepcionApi ex) { _error = ex.Message; }
+        finally { _guardando = false; }
     }
 
-    private async Task FirmarAsync(int id) { await Api.FirmarDocumentoAsync(id); await CargarAsync(); }
-    private async Task RenovarAsync(int id) { await Api.RenovarDocumentoAsync(id); await CargarAsync(); }
-    private async Task EliminarAsync(int id) { await Api.EliminarDocumentoAsync(id); await CargarAsync(); }
+    private async Task FirmarAsync(int id) => await EjecutarAccionAsync(() => Api.FirmarDocumentoAsync(id));
+    private async Task RenovarAsync(int id) => await EjecutarAccionAsync(() => Api.RenovarDocumentoAsync(id));
+    private async Task EliminarAsync(int id) => await EjecutarAccionAsync(() => Api.EliminarDocumentoAsync(id));
+
+    private async Task EjecutarAccionAsync(Func<Task> accion)
+    {
+        _error = null;
+        try { await accion(); await CargarAsync(1); }
+        catch (ExcepcionApi ex) { _error = ex.Message; }
+    }
 
     private class ModeloDocumento
     {

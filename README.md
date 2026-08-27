@@ -89,6 +89,26 @@ JWT con los roles y permisos efectivos del usuario como claims. El frontend:
    `SstControl.Api.Seguridad.ExtensionesPermisos` del backend) — la
    autorización real, por supuesto, la sigue validando siempre la API.
 
+## Robustecimiento técnico (resiliencia e interoperabilidad con el backend)
+
+- **Reintentos con backoff exponencial** (`ManejadorReintentos`) ante fallas
+  transitorias de red — solo en peticiones GET (idempotentes), hasta 3 intentos.
+  Implementado a mano en vez de con Polly/`Microsoft.Extensions.Http.Resilience`
+  porque este entorno no pudo verificar versiones de paquete contra NuGet;
+  migrar a ese paquete es el siguiente paso natural si confirmas versiones válidas.
+- **Sesión expirada** (`ManejadorSesionExpirada`): un 401 fuera del login limpia
+  el token y notifica al proveedor de autenticación — Blazor redirige solo a
+  `/login` vía el mismo mecanismo que protege cualquier ruta `[Authorize]`,
+  sin necesitar navegación explícita.
+- **Errores reales, no silenciosos** (`ExcepcionApi` + `ServicioApi.LanzarSiFallaAsync`):
+  toda operación que falla parsea el `application/problem+json` (RFC 7807) o el
+  `ValidationProblemDetails` que devuelve el backend, y cada página lo muestra
+  en pantalla — antes las páginas devolvían `null` en silencio ante un error.
+- **Paginación real** (`PaginaDto<T>`, espejo del backend): Documentos y Actas
+  cargan de a 20 elementos con "Cargar más", en vez de traer la tabla completa.
+- **Timeout explícito** de 20s por petición HTTP, para no dejar la UI esperando
+  indefinidamente si el backend no responde.
+
 ## Alcance actual / próximos pasos
 
 Esta primera versión cubre 1:1 los endpoints ya expuestos por el backend:
@@ -103,6 +123,12 @@ backend las exponga:
   actual solo permite consultarlos o crear empresas/sedes).
 - Sincronización de reuniones (`POST /api/sincronizacion-reuniones/{proveedor}`)
   y webhooks — pensados para integraciones servidor-a-servidor, no para UI.
+- El Panel calcula "pendientes"/"vencidos" solo sobre los últimos 5 documentos
+  cargados (etiquetado así en la UI) — al paginar en el backend, ya no se puede
+  calcular ese conteo sobre la tabla completa sin traerla entera. Lo correcto
+  es que el backend exponga un endpoint de resumen/agregado (ej.
+  `GET /api/documentos/resumen`) que devuelva esos conteos ya calculados en la
+  base de datos.
 
 ## Notas de compilación
 

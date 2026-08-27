@@ -14,15 +14,27 @@ public static class ConfiguracionServicios
 {
     public static IServiceCollection AgregarServiciosSstControl(this IServiceCollection servicios, string urlBaseApi)
     {
-        servicios.AddTransient<ManejadorAutenticacion>();
+        servicios.AddScoped<AuthenticationStateProvider, ProveedorEstadoAutenticacion>();
+        servicios.AddScoped(sp => (ProveedorEstadoAutenticacion)sp.GetRequiredService<AuthenticationStateProvider>());
 
-        servicios.AddHttpClient("SstControlApi", cliente => cliente.BaseAddress = new Uri(urlBaseApi))
-            .AddHttpMessageHandler<ManejadorAutenticacion>();
+        servicios.AddTransient<ManejadorAutenticacion>();
+        servicios.AddTransient<ManejadorSesionExpirada>();
+        servicios.AddTransient<ManejadorReintentos>();
+
+        // Orden de la cadena (de afuera hacia adentro): agrega el token → detecta
+        // sesión expirada sobre la respuesta final → reintenta fallas transitorias
+        // (los reintentos ya salen con el token puesto, gracias al orden).
+        servicios.AddHttpClient("SstControlApi", cliente =>
+            {
+                cliente.BaseAddress = new Uri(urlBaseApi);
+                cliente.Timeout = TimeSpan.FromSeconds(20);
+            })
+            .AddHttpMessageHandler<ManejadorAutenticacion>()
+            .AddHttpMessageHandler<ManejadorSesionExpirada>()
+            .AddHttpMessageHandler<ManejadorReintentos>();
 
         servicios.AddScoped(sp => sp.GetRequiredService<IHttpClientFactory>().CreateClient("SstControlApi"));
 
-        servicios.AddScoped<AuthenticationStateProvider, ProveedorEstadoAutenticacion>();
-        servicios.AddScoped(sp => (ProveedorEstadoAutenticacion)sp.GetRequiredService<AuthenticationStateProvider>());
         servicios.AddScoped<ServicioAutenticacion>();
         servicios.AddScoped<ServicioApi>();
         servicios.AddAuthorizationCore();
