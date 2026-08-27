@@ -24,13 +24,24 @@ public class ServicioAutenticacion(HttpClient http, ITokenStore almacenToken, Pr
         var resultado = await respuesta.Content.ReadFromJsonAsync<ResultadoAutenticacionDto>();
         if (resultado is null) return (false, "El servidor respondió con datos inesperados.");
 
-        await almacenToken.GuardarTokenAsync(resultado.Token);
+        await almacenToken.GuardarTokensAsync(resultado.Token, resultado.TokenRenovacion);
         proveedorEstado.NotificarCambio();
         return (true, null);
     }
 
+    /// <summary>Revoca el token de renovación del lado del servidor (best-effort —
+    /// si no hay red en este momento, igual se cierra la sesión localmente; el
+    /// token de renovación huérfano expira solo en Jwt:DiasVigenciaTokenRenovacion
+    /// días) y limpia el almacenamiento local.</summary>
     public async Task CerrarSesionAsync()
     {
+        var tokenRenovacion = await almacenToken.ObtenerTokenRenovacionAsync();
+        if (!string.IsNullOrWhiteSpace(tokenRenovacion))
+        {
+            try { await http.PostAsJsonAsync("api/autenticacion/cerrar-sesion", new PeticionTokenRenovacion(tokenRenovacion)); }
+            catch (HttpRequestException) { /* sin conexión: se cierra igual la sesión local */ }
+        }
+
         await almacenToken.LimpiarTokenAsync();
         proveedorEstado.NotificarCambio();
     }

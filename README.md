@@ -96,10 +96,18 @@ JWT con los roles y permisos efectivos del usuario como claims. El frontend:
   Implementado a mano en vez de con Polly/`Microsoft.Extensions.Http.Resilience`
   porque este entorno no pudo verificar versiones de paquete contra NuGet;
   migrar a ese paquete es el siguiente paso natural si confirmas versiones válidas.
-- **Sesión expirada** (`ManejadorSesionExpirada`): un 401 fuera del login limpia
-  el token y notifica al proveedor de autenticación — Blazor redirige solo a
-  `/login` vía el mismo mecanismo que protege cualquier ruta `[Authorize]`,
-  sin necesitar navegación explícita.
+- **Sesión expirada, con renovación real** (`ManejadorSesionExpirada`): un 401
+  fuera de `/api/autenticacion/*` intenta renovar la sesión con
+  `POST /api/autenticacion/renovar-token` antes de rendirse. En una petición GET,
+  reintenta automáticamente con el token nuevo (el usuario no nota nada). En
+  POST/DELETE no reintenta automáticamente (no se puede clonar con garantías un
+  cuerpo ya enviado una vez), pero el token queda renovado para la siguiente
+  acción. Si la renovación falla (token de renovación vencido/revocado), recién
+  ahí se cierra la sesión y Blazor redirige solo a `/login`.
+- **Cerrar sesión revoca en el servidor**: `ServicioAutenticacion.CerrarSesionAsync`
+  llama a `POST /api/autenticacion/cerrar-sesion` (best-effort) antes de limpiar
+  el almacenamiento local — antes "cerrar sesión" solo borraba el token en el
+  cliente, dejándolo utilizable por cualquiera que tuviera una copia.
 - **Errores reales, no silenciosos** (`ExcepcionApi` + `ServicioApi.LanzarSiFallaAsync`):
   toda operación que falla parsea el `application/problem+json` (RFC 7807) o el
   `ValidationProblemDetails` que devuelve el backend, y cada página lo muestra

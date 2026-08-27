@@ -1,0 +1,39 @@
+name: CI frontend
+
+on:
+  push:
+    branches: [ main ]
+    paths-ignore:
+      - '.github/workflows/deploy-web.yml'
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  compilar-shared-y-web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Instalar .NET 10 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restaurar SstControl.Frontend.Shared
+        run: dotnet restore SstControl.Frontend.Shared/SstControl.Frontend.Shared.csproj
+
+      - name: Compilar SstControl.Frontend.Shared (Release)
+        run: dotnet build SstControl.Frontend.Shared/SstControl.Frontend.Shared.csproj -c Release --no-restore
+
+      - name: Restaurar SstControl.Frontend.Web
+        run: dotnet restore SstControl.Frontend.Web/SstControl.Frontend.Web.csproj
+
+      - name: Compilar SstControl.Frontend.Web (Release)
+        run: dotnet build SstControl.Frontend.Web/SstControl.Frontend.Web.csproj -c Release --no-restore
+
+  # SstControl.Frontend.Maui queda fuera de este CI a propósito: compilar para
+  # Android/iOS/MacCatalyst/Windows requiere instalar el workload "maui" (grande,
+  # ~varios GB, y con dependencias de macOS/Xcode para iOS/MacCatalyst) — no es
+  # razonable en cada push. Verifícalo localmente con:
+  #   dotnet workload install maui
+  #   dotnet build SstControl.Frontend.Maui -f net10.0-android
