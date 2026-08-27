@@ -114,6 +114,10 @@ JWT con los roles y permisos efectivos del usuario como claims. El frontend:
   en pantalla — antes las páginas devolvían `null` en silencio ante un error.
 - **Paginación real** (`PaginaDto<T>`, espejo del backend): Documentos y Actas
   cargan de a 20 elementos con "Cargar más", en vez de traer la tabla completa.
+- **Resumen agregado real** (`ResumenDocumentosDto`, vía `GET /api/documentos/resumen`):
+  el Panel muestra conteos de pendientes/vencidos calculados en la base de
+  datos, correctos sin importar cuántos documentos existan — no una
+  aproximación sobre los últimos elementos cargados.
 - **Timeout explícito** de 20s por petición HTTP, para no dejar la UI esperando
   indefinidamente si el backend no responde.
 
@@ -131,12 +135,6 @@ backend las exponga:
   actual solo permite consultarlos o crear empresas/sedes).
 - Sincronización de reuniones (`POST /api/sincronizacion-reuniones/{proveedor}`)
   y webhooks — pensados para integraciones servidor-a-servidor, no para UI.
-- El Panel calcula "pendientes"/"vencidos" solo sobre los últimos 5 documentos
-  cargados (etiquetado así en la UI) — al paginar en el backend, ya no se puede
-  calcular ese conteo sobre la tabla completa sin traerla entera. Lo correcto
-  es que el backend exponga un endpoint de resumen/agregado (ej.
-  `GET /api/documentos/resumen`) que devuelva esos conteos ya calculados en la
-  base de datos.
 
 ## Notas de compilación
 

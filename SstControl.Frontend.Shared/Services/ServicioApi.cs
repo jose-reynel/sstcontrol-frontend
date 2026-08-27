@@ -41,6 +41,11 @@ public class ServicioApi(HttpClient http)
         await http.GetFromJsonAsync<PaginaDto<DocumentoDto>>($"api/documentos?pagina={pagina}&tamanioPagina={tamanioPagina}")
         ?? new PaginaDto<DocumentoDto>([], pagina, tamanioPagina, 0);
 
+    /// <summary>Conteos agregados (total, pendientes, vencidos, aprobados) calculados
+    /// en el servidor — usado por el Panel, en vez de inferirlos de una página parcial.</summary>
+    public async Task<ResumenDocumentosDto> ObtenerResumenDocumentosAsync() =>
+        await http.GetFromJsonAsync<ResumenDocumentosDto>("api/documentos/resumen") ?? new ResumenDocumentosDto(0, 0, 0, 0);
+
     public async Task<DocumentoDto> CrearDocumentoAsync(CrearDocumentoDto datos)
     {
         var respuesta = await http.PostAsJsonAsync("api/documentos", datos);
