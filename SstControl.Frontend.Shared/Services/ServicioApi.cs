@@ -104,6 +104,61 @@ public class ServicioApi(HttpClient http)
     public async Task AsignarGrupoAsync(int idUsuario, int idGrupo) =>
         await LanzarSiFallaAsync(await http.PostAsJsonAsync("api/control-acceso/asignar-grupo", new AsignarGrupoDto(idUsuario, idGrupo)));
 
+    // ---- Bot de minutas: compromisos de seguimiento de una Acta ----
+    /// <summary>Corre el bot sobre el contenido ya sincronizado del acta (transcripción
+    /// o resumen) y registra los compromisos nuevos que detecte. Seguro de llamar varias
+    /// veces: el backend no duplica compromisos que el bot ya había generado antes.</summary>
+    public async Task<MinutaGeneradaDto> GenerarMinutaAsync(int idActa)
+    {
+        var respuesta = await http.PostAsync($"api/actas/{idActa}/generar-minuta", content: null);
+        await LanzarSiFallaAsync(respuesta);
+        return (await respuesta.Content.ReadFromJsonAsync<MinutaGeneradaDto>())!;
+    }
+
+    public async Task<List<CompromisoActaDto>> ObtenerCompromisosAsync(int idActa) =>
+        await http.GetFromJsonAsync<List<CompromisoActaDto>>($"api/actas/{idActa}/compromisos") ?? [];
+
+    public async Task<CompromisoActaDto> AgregarCompromisoAsync(int idActa, CrearCompromisoDto datos)
+    {
+        var respuesta = await http.PostAsJsonAsync($"api/actas/{idActa}/compromisos", datos);
+        await LanzarSiFallaAsync(respuesta);
+        return (await respuesta.Content.ReadFromJsonAsync<CompromisoActaDto>())!;
+    }
+
+    public async Task<CompromisoActaDto> CumplirCompromisoAsync(int idCompromiso)
+    {
+        var respuesta = await http.PostAsync($"api/compromisos/{idCompromiso}/cumplir", content: null);
+        await LanzarSiFallaAsync(respuesta);
+        return (await respuesta.Content.ReadFromJsonAsync<CompromisoActaDto>())!;
+    }
+
+    /// <summary>Vincula el compromiso al Documento (ya existente) cuyo cambio lo cierra —
+    /// el "integrar cambios en documentos" a partir de una minuta.</summary>
+    public async Task<CompromisoActaDto> VincularDocumentoAsync(int idCompromiso, int idDocumento)
+    {
+        var respuesta = await http.PostAsJsonAsync($"api/compromisos/{idCompromiso}/vincular-documento", new VincularDocumentoDto(idDocumento));
+        await LanzarSiFallaAsync(respuesta);
+        return (await respuesta.Content.ReadFromJsonAsync<CompromisoActaDto>())!;
+    }
+
+    // ---- Digitalización (OCR) de documentos físicos escaneados ----
+    /// <summary>Sube una foto/imagen escaneada de un documento físico y ejecuta OCR
+    /// sobre ella (JPEG, PNG, BMP o TIFF; máx. 15 MB en el servidor).</summary>
+    public async Task<DigitalizacionDocumentoDto> EscanearDocumentoAsync(int idDocumento, Stream contenidoArchivo, string nombreArchivo, string tipoContenido)
+    {
+        using var formulario = new MultipartFormDataContent();
+        using var contenido = new StreamContent(contenidoArchivo);
+        contenido.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(tipoContenido);
+        formulario.Add(contenido, "archivo", nombreArchivo);
+
+        var respuesta = await http.PostAsync($"api/documentos/{idDocumento}/escaneo", formulario);
+        await LanzarSiFallaAsync(respuesta);
+        return (await respuesta.Content.ReadFromJsonAsync<DigitalizacionDocumentoDto>())!;
+    }
+
+    public async Task<DigitalizacionDocumentoDto?> ObtenerEscaneoAsync(int idDocumento) =>
+        await http.GetFromJsonAsync<DigitalizacionDocumentoDto?>($"api/documentos/{idDocumento}/escaneo");
+
     /// <summary>Traduce una respuesta HTTP fallida en una ExcepcionApi con mensaje
     /// legible, leyendo el application/problem+json (RFC 7807) que devuelve
     /// SstControl.Api.Middleware.ManejadorErroresGlobal, o el ValidationProblemDetails

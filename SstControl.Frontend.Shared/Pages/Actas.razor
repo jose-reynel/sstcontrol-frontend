@@ -72,7 +72,7 @@
         else
         {
             <table>
-                <thead><tr><th>Fecha</th><th>Tipo</th><th>Título</th><th>Creó</th></tr></thead>
+                <thead><tr><th>Fecha</th><th>Tipo</th><th>Título</th><th>Creó</th><th></th></tr></thead>
                 <tbody>
                     @foreach (var acta in _pagina.Elementos)
                     {
@@ -81,6 +81,11 @@
                             <td>@(acta.Tipo == "Capacitacion" ? "Capacitación" : "Reunión")</td>
                             <td>@acta.Titulo</td>
                             <td>@acta.NombreCreador</td>
+                            <td>
+                                <a class="boton boton--pequeno" href="@($"/actas/{acta.IdActa}/compromisos?titulo={Uri.EscapeDataString(acta.Titulo)}")">
+                                    Compromisos
+                                </a>
+                            </td>
                         </tr>
                     }
                 </tbody>

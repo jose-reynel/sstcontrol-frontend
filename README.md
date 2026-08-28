@@ -121,6 +121,23 @@ JWT con los roles y permisos efectivos del usuario como claims. El frontend:
 - **Timeout explícito** de 20s por petición HTTP, para no dejar la UI esperando
   indefinidamente si el backend no responde.
 
+## Seguimiento de actas (bot de minutas) y digitalización de documentos
+
+- **Compromisos de una Acta** (`/actas/{id}/compromisos`, botón "Compromisos" en
+  la tabla de Actas): corre el bot de minutas del backend
+  (`POST /api/actas/{id}/generar-minuta`) sobre la transcripción/resumen ya
+  sincronizado de la reunión, muestra los compromisos detectados (responsable,
+  fecha límite, origen "Bot" o "Manual"), permite agregar compromisos a mano,
+  marcarlos como cumplidos, y vincular cada uno al Documento cuyo cambio lo
+  cierra — el flujo completo de "qué se acordó en la reunión" → "qué cambió en
+  el sistema documental".
+- **Escaneo de documentos físicos** (columna "Escaneo físico" en Documentos):
+  sube una foto/imagen (JPEG, PNG, BMP o TIFF, máx. 15 MB — igual que el límite
+  real del backend) y muestra el texto reconocido por OCR y el porcentaje de
+  confianza. El botón "¿Ya está escaneado?" consulta bajo demanda si el
+  documento ya tenía un escaneo de una sesión anterior, sin traerlo por
+  adelantado para cada fila de la tabla (evitaría N peticiones extra por página).
+
 ## Alcance actual / próximos pasos
 
 Esta primera versión cubre 1:1 los endpoints ya expuestos por el backend:

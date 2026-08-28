@@ -1,0 +1,216 @@
+@page "/actas/{IdActa:int}/compromisos"
+@attribute [Authorize]
+@inject ServicioApi Api
+
+<span class="encabezado-pagina__ojo">Acta #@IdActa @(string.IsNullOrWhiteSpace(Titulo) ? "" : $"· {Titulo}")</span>
+<h1>Compromisos de seguimiento</h1>
+
+@if (_error is not null)
+{
+    <div class="mensaje-error">@_error</div>
+}
+
+<AuthorizeView Context="contextoAuth">
+    @{
+        var puedeCrear = contextoAuth.User.TienePermiso("actas.crear");
+        var puedeVerActas = contextoAuth.User.TienePermiso("actas.ver");
+    }
+
+    @if (!puedeVerActas)
+    {
+        <p class="estado-vacio">Tu perfil no tiene permiso para ver los compromisos de las actas.</p>
+    }
+    else
+    {
+        @if (puedeCrear)
+        {
+            <div class="tarjeta">
+                <div class="tarjeta__titulo">
+                    <h2>Bot de minutas</h2>
+                    <button class="boton boton--primario boton--pequeno" disabled="@_generando" @onclick="GenerarMinutaAsync">
+                        @(_generando ? "Analizando…" : "Generar minuta")
+                    </button>
+                </div>
+                <p style="font-size:.85rem;color:var(--color-tinta-suave);margin:0;">
+                    Analiza la transcripción o el resumen ya sincronizado de esta reunión y detecta compromisos
+                    (acuerdos, responsables, fechas límite) automáticamente. Puedes correrlo varias veces: no
+                    duplica lo que ya había detectado antes.
+                </p>
+                @if (_ultimoTextoFuente is not null)
+                {
+                    <p style="font-size:.8rem;color:var(--color-tinta-suave);margin-top:.6rem;">
+                        <strong>Extracto analizado:</strong> @_ultimoTextoFuente
+                    </p>
+                }
+                else if (_seCorrioElBot)
+                {
+                    <p class="estado-vacio">Esta reunión no tiene transcripción ni resumen sincronizado — no hay texto que el bot pueda analizar.</p>
+                }
+            </div>
+
+            <div class="tarjeta">
+                <div class="tarjeta__titulo"><h2>Agregar compromiso a mano</h2></div>
+                <EditForm Model="_nuevo" OnValidSubmit="AgregarCompromisoAsync">
+                    <div class="formulario-fila">
+                        <div class="campo">
+                            <label>Descripción</label>
+                            <InputText @bind-Value="_nuevo.Descripcion" />
+                        </div>
+                        <div class="campo">
+                            <label>Responsable</label>
+                            <InputText @bind-Value="_nuevo.Responsable" />
+                        </div>
+                        <div class="campo">
+                            <label>Fecha límite</label>
+                            <InputDate @bind-Value="_nuevo.FechaLimite" />
+                        </div>
+                    </div>
+                    <button type="submit" class="boton boton--primario" disabled="@string.IsNullOrWhiteSpace(_nuevo.Descripcion)">
+                        Agregar compromiso
+                    </button>
+                </EditForm>
+            </div>
+        }
+
+        <div class="tarjeta">
+            @if (_cargando)
+            {
+                <p class="estado-vacio">Cargando…</p>
+            }
+            else if (_compromisos.Count == 0)
+            {
+                <p class="estado-vacio">Todavía no hay compromisos registrados para esta acta.</p>
+            }
+            else
+            {
+                <table>
+                    <thead><tr><th>Descripción</th><th>Responsable</th><th>Fecha límite</th><th>Origen</th><th>Documento</th><th>Estado</th><th></th></tr></thead>
+                    <tbody>
+                        @foreach (var compromiso in _compromisos)
+                        {
+                            <tr>
+                                <td>@compromiso.Descripcion</td>
+                                <td>@(compromiso.Responsable ?? "—")</td>
+                                <td class="dato-mono">@(compromiso.FechaLimite?.ToString() ?? "—")</td>
+                                <td>@(compromiso.Origen == "Bot" ? "🤖 Bot" : "Manual")</td>
+                                <td>@(compromiso.ActividadDocumentoRelacionado ?? "—")</td>
+                                <td>
+                                    @if (compromiso.Estado == "Cumplido")
+                                    {
+                                        <span class="insignia insignia--firmado"><span class="sello-firma">✓</span> Cumplido</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="insignia insignia--pendiente">Pendiente</span>
+                                    }
+                                </td>
+                                <td style="display:flex;gap:.4rem;">
+                                    @if (puedeCrear && compromiso.Estado != "Cumplido")
+                                    {
+                                        <button class="boton boton--pequeno" @onclick="() => CumplirAsync(compromiso.IdCompromiso)">Cumplir</button>
+                                    }
+                                    @if (puedeCrear && compromiso.IdDocumentoRelacionado is null)
+                                    {
+                                        <input type="number" min="1" placeholder="Id. doc." style="width:5.5rem;padding:.3rem .4rem;border:1px solid var(--color-borde);border-radius:8px;"
+                                               @bind="_idDocumentoPorCompromiso[compromiso.IdCompromiso]" @bind:event="oninput" />
+                                        <button class="boton boton--pequeno" @onclick="() => VincularDocumentoAsync(compromiso.IdCompromiso)">Vincular</button>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </div>
+    }
+</AuthorizeView>
+
+@code {
+    [Parameter] public int IdActa { get; set; }
+    [SupplyParameterFromQuery] public string? Titulo { get; set; }
+
+    private bool _cargando = true;
+    private bool _generando;
+    private bool _seCorrioElBot;
+    private string? _error;
+    private string? _ultimoTextoFuente;
+    private List<CompromisoActaDto> _compromisos = [];
+    private readonly Dictionary<int, int> _idDocumentoPorCompromiso = [];
+    private readonly ModeloCompromiso _nuevo = new();
+
+    protected override async Task OnInitializedAsync() => await CargarAsync();
+
+    private async Task CargarAsync()
+    {
+        _cargando = true;
+        try
+        {
+            _compromisos = await Api.ObtenerCompromisosAsync(IdActa);
+            AsegurarEntradasDocumento();
+        }
+        catch (ExcepcionApi ex) { _error = ex.Message; }
+        finally { _cargando = false; }
+    }
+
+    private async Task GenerarMinutaAsync()
+    {
+        _generando = true;
+        _error = null;
+        try
+        {
+            var minuta = await Api.GenerarMinutaAsync(IdActa);
+            _ultimoTextoFuente = minuta.TextoFuente;
+            _compromisos = minuta.Compromisos;
+            AsegurarEntradasDocumento();
+            _seCorrioElBot = true;
+        }
+        catch (ExcepcionApi ex) { _error = ex.Message; }
+        finally { _generando = false; }
+    }
+
+    /// <summary>El input "Id. doc." de cada fila usa @bind sobre este diccionario —
+    /// hay que garantizar la clave de antemano o el primer render lanza
+    /// KeyNotFoundException al leer el valor inicial del indexador.</summary>
+    private void AsegurarEntradasDocumento()
+    {
+        foreach (var compromiso in _compromisos)
+            _idDocumentoPorCompromiso.TryAdd(compromiso.IdCompromiso, 0);
+    }
+
+    private async Task AgregarCompromisoAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_nuevo.Descripcion)) return;
+        _error = null;
+        try
+        {
+            await Api.AgregarCompromisoAsync(IdActa, new CrearCompromisoDto(_nuevo.Descripcion, _nuevo.Responsable, _nuevo.FechaLimite, null));
+            _nuevo.Descripcion = "";
+            _nuevo.Responsable = null;
+            _nuevo.FechaLimite = null;
+            await CargarAsync();
+        }
+        catch (ExcepcionApi ex) { _error = ex.Message; }
+    }
+
+    private async Task CumplirAsync(int idCompromiso)
+    {
+        _error = null;
+        try { await Api.CumplirCompromisoAsync(idCompromiso); await CargarAsync(); }
+        catch (ExcepcionApi ex) { _error = ex.Message; }
+    }
+
+    private async Task VincularDocumentoAsync(int idCompromiso)
+    {
+        if (!_idDocumentoPorCompromiso.TryGetValue(idCompromiso, out var idDocumento) || idDocumento <= 0) return;
+        _error = null;
+        try { await Api.VincularDocumentoAsync(idCompromiso, idDocumento); await CargarAsync(); }
+        catch (ExcepcionApi ex) { _error = ex.Message; }
+    }
+
+    private class ModeloCompromiso
+    {
+        public string Descripcion { get; set; } = "";
+        public string? Responsable { get; set; }
+        public DateOnly? FechaLimite { get; set; }
+    }
+}

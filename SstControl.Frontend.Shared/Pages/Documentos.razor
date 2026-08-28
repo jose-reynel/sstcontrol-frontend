@@ -61,7 +61,7 @@
             <table>
                 <thead>
                     <tr>
-                        <th>Colaborador</th><th>Tipo</th><th>Actividad</th><th>Captura</th><th>Vence</th><th>Estado</th><th>Aprobó</th><th></th>
+                        <th>Colaborador</th><th>Tipo</th><th>Actividad</th><th>Captura</th><th>Vence</th><th>Estado</th><th>Aprobó</th><th>Escaneo físico</th><th></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -75,6 +75,28 @@
                             <td class="dato-mono">@doc.FechaVencimiento</td>
                             <td><EstadoDocumento Estado="@doc.Estado" FechaVencimiento="@doc.FechaVencimiento" /></td>
                             <td>@(doc.NombreQuienAprueba ?? "—")</td>
+                            <td>
+                                @if (_idDocumentoEscaneando == doc.IdDocumento)
+                                {
+                                    <span class="estado-vacio" style="padding:0;">Procesando OCR…</span>
+                                }
+                                else
+                                {
+                                    <div style="display:flex;flex-direction:column;gap:.3rem;align-items:flex-start;">
+                                        <InputFile OnChange="e => EscanearAsync(doc.IdDocumento, e)" accept="image/jpeg,image/png,image/bmp,image/tiff" />
+                                        @if (_escaneos.TryGetValue(doc.IdDocumento, out var escaneo) && escaneo is not null)
+                                        {
+                                            <button class="boton boton--pequeno" @onclick="() => AlternarDetalleAsync(doc.IdDocumento)">
+                                                @(escaneo.Confianza is { } c ? $"Ver texto ({c:0}% confianza)" : "Ver texto")
+                                            </button>
+                                        }
+                                        else if (!_escaneos.ContainsKey(doc.IdDocumento))
+                                        {
+                                            <button class="boton boton--pequeno" @onclick="() => AlternarDetalleAsync(doc.IdDocumento)">¿Ya está escaneado?</button>
+                                        }
+                                    </div>
+                                }
+                            </td>
                             <td style="display:flex;gap:.4rem;">
                                 @if (puedeFirmar && doc.Estado == "Pendiente")
                                 {
@@ -87,6 +109,23 @@
                                 }
                             </td>
                         </tr>
+                        @if (_filaExpandida == doc.IdDocumento && _escaneos.TryGetValue(doc.IdDocumento, out var detalle))
+                        {
+                            <tr>
+                                <td colspan="9" style="background:var(--color-fondo);">
+                                    @if (detalle is null)
+                                    {
+                                        <span class="estado-vacio" style="padding:0;">Este documento todavía no tiene ningún escaneo registrado.</span>
+                                    }
+                                    else
+                                    {
+                                        <strong>@detalle.NombreArchivoOriginal</strong>
+                                        <span style="color:var(--color-tinta-suave);"> — escaneado @detalle.FechaEscaneo.ToLocalTime().ToString("g")</span>
+                                        <p style="white-space:pre-wrap;margin:.5rem 0 0;">@(detalle.TextoExtraido ?? "No se reconoció texto en la imagen.")</p>
+                                    }
+                                </td>
+                            </tr>
+                        }
                     }
                 </tbody>
             </table>
@@ -114,6 +153,11 @@
     private string? _error;
     private PaginaDto<DocumentoDto> _pagina = new([], 1, TamanioPagina, 0);
     private readonly ModeloDocumento _nuevo = new();
+
+    // ---- Escaneo (OCR) ----
+    private int? _idDocumentoEscaneando;
+    private int? _filaExpandida;
+    private readonly Dictionary<int, DigitalizacionDocumentoDto?> _escaneos = [];
 
     protected override async Task OnInitializedAsync() => await CargarAsync(1);
 
@@ -160,6 +204,47 @@
         _error = null;
         try { await accion(); await CargarAsync(1); }
         catch (ExcepcionApi ex) { _error = ex.Message; }
+    }
+
+    /// <summary>Sube la foto/imagen seleccionada y ejecuta OCR sobre ella. El tamaño
+    /// máximo (15 MB) debe coincidir con el límite real que aplica el backend
+    /// (RequestSizeLimit en DocumentosControlador) — se valida acá también para dar
+    /// el error de inmediato, sin esperar el viaje de ida y vuelta a la API.</summary>
+    private async Task EscanearAsync(int idDocumento, InputFileChangeEventArgs evento)
+    {
+        const long tamanioMaximoBytes = 15 * 1024 * 1024;
+        var archivo = evento.File;
+        if (archivo.Size > tamanioMaximoBytes)
+        {
+            _error = $"\"{archivo.Name}\" supera el máximo permitido de 15 MB.";
+            return;
+        }
+
+        _idDocumentoEscaneando = idDocumento;
+        _error = null;
+        try
+        {
+            await using var flujo = archivo.OpenReadStream(tamanioMaximoBytes);
+            var resultado = await Api.EscanearDocumentoAsync(idDocumento, flujo, archivo.Name, archivo.ContentType);
+            _escaneos[idDocumento] = resultado;
+            _filaExpandida = idDocumento;
+        }
+        catch (ExcepcionApi ex) { _error = ex.Message; }
+        finally { _idDocumentoEscaneando = null; }
+    }
+
+    /// <summary>Muestra/oculta el texto reconocido de un documento ya escaneado
+    /// (en esta sesión, o consultado por primera vez ahora mismo).</summary>
+    private async Task AlternarDetalleAsync(int idDocumento)
+    {
+        if (_filaExpandida == idDocumento) { _filaExpandida = null; return; }
+
+        if (!_escaneos.ContainsKey(idDocumento))
+        {
+            try { _escaneos[idDocumento] = await Api.ObtenerEscaneoAsync(idDocumento); }
+            catch (ExcepcionApi ex) { _error = ex.Message; return; }
+        }
+        _filaExpandida = idDocumento;
     }
 
     private class ModeloDocumento
